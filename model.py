@@ -19,11 +19,9 @@ df = pd.read_csv(DATA_FILE)
 # PREPROCESSING
 # ==========================================================
 
-# Binary Encoding
 df['certification_offered'] = df['certification_offered'].map({'Yes': 1, 'No': 0})
 df['study_material_available'] = df['study_material_available'].map({'Yes': 1, 'No': 0})
 
-# Ordinal Encoding
 df['difficulty_level'] = df['difficulty_level'].map({
     'Beginner': 1,
     'Intermediate': 2,
@@ -32,7 +30,6 @@ df['difficulty_level'] = df['difficulty_level'].map({
 
 df.fillna(0, inplace=True)
 
-# Scaling
 scale_cols = [
     'course_duration_hours',
     'course_price',
@@ -47,7 +44,7 @@ scaler = MinMaxScaler()
 df[scale_cols] = scaler.fit_transform(df[scale_cols])
 
 # ==========================================================
-# REMOVE DUPLICATE COURSES (IMPORTANT FIX)
+# REMOVE DUPLICATE COURSES
 # ==========================================================
 
 df_unique = df.drop_duplicates(subset='course_id').copy()
@@ -70,12 +67,30 @@ content_features = [
 ]
 
 X_content = df_unique[content_features].values
-course_index = {
-    cid: idx for idx, cid in enumerate(df_unique['course_id'])
-}
+course_index = {cid: idx for idx, cid in enumerate(df_unique['course_id'])}
 
 # ==========================================================
-# HYBRID RECOMMENDATION FUNCTION
+# PRECOMPUTE USER MATRIX ONCE (SAFE)
+# ==========================================================
+
+user_item = df.pivot_table(
+    index='user_id',
+    columns='course_id',
+    values='rating'
+).fillna(0)
+
+if len(user_item) > 0:
+    user_similarity = cosine_similarity(user_item)
+    user_similarity_df = pd.DataFrame(
+        user_similarity,
+        index=user_item.index,
+        columns=user_item.index
+    )
+else:
+    user_similarity_df = pd.DataFrame()
+
+# ==========================================================
+# HYBRID RECOMMENDATION
 # ==========================================================
 
 def hybrid_recommendation(user_id=None, reference_course_id=None, top_n=5, alpha=0.7):
@@ -83,7 +98,7 @@ def hybrid_recommendation(user_id=None, reference_course_id=None, top_n=5, alpha
     final_scores = {}
 
     # -------------------------
-    # CONTENT-BASED
+    # CONTENT BASED
     # -------------------------
     if reference_course_id in course_index:
 
@@ -96,47 +111,30 @@ def hybrid_recommendation(user_id=None, reference_course_id=None, top_n=5, alpha
             final_scores[cid] = alpha * score
 
     # -------------------------
-    # COLLABORATIVE (LIGHT)
+    # COLLABORATIVE (SAFE)
     # -------------------------
-    if user_id is not None and user_id in df['user_id'].values:
+    if (
+        user_id is not None and
+        user_id in user_similarity_df.index
+    ):
 
-        user_item = df.pivot_table(
-            index='user_id',
-            columns='course_id',
-            values='rating'
-        ).fillna(0)
-
-        user_similarity = cosine_similarity(user_item)
-
-        user_similarity_df = pd.DataFrame(
-            user_similarity,
-            index=user_item.index,
-            columns=user_item.index
+        similar_users = (
+            user_similarity_df.loc[user_id]
+            .sort_values(ascending=False)
+            .iloc[1:6]
         )
 
-        if user_id in user_similarity_df.index:
+        for sim_user, sim_score in similar_users.items():
 
-            similar_users = (
-                user_similarity_df[user_id]
-                .sort_values(ascending=False)
-                .iloc[1:6]
-            )
+            ratings = user_item.loc[sim_user]
 
-            for sim_user, sim_score in similar_users.items():
-
-                ratings = user_item.loc[sim_user]
-
-                for cid, rating in ratings.items():
-                    if rating > 0:
-                        final_scores[cid] = final_scores.get(cid, 0) + \
-                                            (1 - alpha) * sim_score * rating
+            for cid, rating in ratings.items():
+                if rating > 0:
+                    final_scores[cid] = final_scores.get(cid, 0) + \
+                                        (1 - alpha) * sim_score * rating
 
     if not final_scores:
         return pd.DataFrame()
-
-    # ==========================================================
-    # GET EXACTLY TOP_N UNIQUE COURSES
-    # ==========================================================
 
     sorted_courses = sorted(
         final_scores.items(),
