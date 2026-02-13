@@ -1,3 +1,8 @@
+import sys
+import os
+print("Python version:", sys.version)
+print("Current directory:", os.getcwd())
+print("Files in directory:", os.listdir('.'))
 import streamlit as st
 from model import hybrid_recommendation
 
@@ -74,3 +79,4 @@ if st.button("🎯 Recommend Courses"):
 # --------------------------------------
 st.markdown("---")
 st.caption("Built with Python, Scikit-learn & Streamlit | Hybrid Recommendation System")
+
