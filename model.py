@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # -------------------------------------------------
 # LOAD DATA
 # -------------------------------------------------
-df = pd.read_excel("online_course_data_small.csv")
+df = pd.read_excel("online_course_data.xlsx")
 
 # -------------------------------------------------
 # PREPROCESSING
@@ -147,3 +147,4 @@ def hybrid_recommendation(user_id=None, reference_course_id=None, top_n=5, alpha
         ['course_id', 'course_name', 'instructor', 'rating']
     ].drop_duplicates()
     
+
