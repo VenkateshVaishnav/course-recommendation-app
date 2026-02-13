@@ -1,3 +1,6 @@
+import os
+print("Current directory:", os.getcwd())
+print("Files available:", os.listdir())
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
@@ -147,3 +150,4 @@ def hybrid_recommendation(user_id=None, reference_course_id=None, top_n=5, alpha
         ['course_id', 'course_name', 'instructor', 'rating']
     ].drop_duplicates()
     
+
